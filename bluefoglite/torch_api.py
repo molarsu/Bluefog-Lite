@@ -22,6 +22,7 @@ import torch.distributed as dist
 from bluefoglite.common.torch_backend import AsyncWork, BlueFogLiteGroup, ReduceOp
 from bluefoglite.common.optimizers import (
     DistributedAdaptWithCombineOptimizer,
+    DistributedGradientAllreduceOptimizer,
     CommunicationType,
 )
 from bluefoglite.utility import (

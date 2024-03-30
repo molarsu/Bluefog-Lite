@@ -2,6 +2,7 @@ from enum import Enum
 from collections import Counter
 import itertools
 import warnings
+from contextlib import contextmanager
 
 import torch
 import bluefoglite.torch_api as bfl
@@ -111,9 +112,6 @@ class _DistributedReduceOptimizer(torch.optim.Optimizer):
         assert isinstance(communication_type, CommunicationType)
         self._communication_type = communication_type
 
-        self._reduce_delay = {
-            v: self._num_steps_per_communication for _, v in sorted(named_parameters)
-        }
         if bfl.size() > 1:
             self._register_hooks()
 
@@ -138,28 +136,18 @@ class _DistributedReduceOptimizer(torch.optim.Optimizer):
                         # Some case like encoder-decode, which shared the same weights.
                         continue
                     if p.requires_grad:
-                        if self._reduce_delay[p] <= 0:
-                            if not self._error_encountered:
-                                warnings.warn(
-                                    _warning_message_num_step_per_communication
-                                )
-                                self._error_encountered = True
-                        self._reduce_delay[p] -= 1
-                        if self._reduce_delay[p] == 0:
-                            if self._communication_type == CommunicationType.allreduce:
-                                async_work = self._allreduce_data_async(p)
-                            elif (
-                                self._communication_type
-                                == CommunicationType.neighbor_allreduce
-                            ):
-                                async_work = self._neighbor_allreduce_data_async(p)
-                            elif self._communication_type == CommunicationType.empty:
-                                async_work = None
-                            else:
-                                raise ValueError(
-                                    "Unsuppported CommunicationType encountered."
-                                )
-                            self._async_works[p] = async_work
+                        if self._communication_type == CommunicationType.allreduce:
+                            async_work = self._allreduce_data_async(p)
+                        elif (
+                            self._communication_type
+                            == CommunicationType.neighbor_allreduce
+                        ):
+                            async_work = self._neighbor_allreduce_data_async(p)
+                        else:
+                            raise ValueError(
+                                "Unsuppported CommunicationType encountered."
+                            )
+                        self._async_works[p] = async_work
 
         return hook
 
@@ -169,11 +157,12 @@ class _DistributedReduceOptimizer(torch.optim.Optimizer):
             self_weight=self.self_weight,
             src_weights=self.src_weights,
             dst_weights=self.dst_weights,
+            inplace=True,
         )
         return async_work
 
     def _allreduce_data_async(self, p):
-        async_work = bfl.allreduce_nonblocking(p.data)
+        async_work = bfl.allreduce_nonblocking(p.data, inplace=True)
         return async_work
 
     @property
@@ -189,12 +178,29 @@ class _DistributedReduceOptimizer(torch.optim.Optimizer):
         with torch.no_grad():
             for p, async_work in self._async_works.items():
                 if async_work is not None:
-                    output = async_work.wait()
-                    p.set_(output)
-                # self._async_works[p] = self._num_steps_per_communication
-                self._reduce_delay[p] = self._num_steps_per_communication
+                    async_work.wait()
         self._async_works.clear()
         self._synchronized = True
+
+    @contextmanager
+    def skip_synchronize(self):
+        """
+        A context manager used to specify that optimizer.step() should
+        not perform synchronization.
+
+        It's typically used in a following pattern:
+
+        .. code-block:: python
+
+            optimizer.synchronize()
+            with optimizer.skip_synchronize():
+                optimizer.step()
+        """
+        self._should_synchronize = False
+        try:
+            yield
+        finally:
+            self._should_synchronize = True
 
     def step(self, closure=None):
         # consensus style is the easiest way to implement it.
@@ -213,6 +219,99 @@ class _DistributedReduceOptimizer(torch.optim.Optimizer):
         return super(self.__class__, self).step(closure)
 
 
+class _DistributedOptimizer(torch.optim.Optimizer):
+    def __init__(self, params, model, backward_passes_per_step=1):
+        super(self.__class__, self).__init__(params)
+
+        named_parameters, models = _check_named_parameters(self, model)
+        self._models = models
+        self._parameter_names = {v: k for k, v in sorted(named_parameters)}
+        self._async_works = {}
+        self._grad_accs = []
+        self._requires_update = set()
+        self._synchronized = False
+        self._should_synchronize = True
+        self._backward_passes_per_step = backward_passes_per_step
+        self._error_encountered = False
+
+        if bfl.size() > 1:
+            self._register_hooks()
+
+    def _register_hooks(self):
+        for param_group in self.param_groups:
+            for p in param_group["params"]:
+                if p.requires_grad:
+                    p.grad = p.data.new(p.size()).zero_()
+                    self._requires_update.add(p)
+                    p_tmp = p.expand_as(p)
+                    grad_acc = p_tmp.grad_fn.next_functions[0][0]
+                    grad_acc.register_hook(self._make_hook(p))
+                    self._grad_accs.append(grad_acc)
+
+    def _make_hook(self, p):
+        def hook(*ignore):
+            assert not p.grad.requires_grad
+            async_work = self._allreduce_grad_async(p)
+            self._async_works[p] = async_work
+
+        return hook
+
+    def _allreduce_grad_async(self, p):
+        async_work = bfl.allreduce_nonblocking(p.grad, inplace=True)
+        return async_work
+
+    def synchronize(self):
+        with torch.no_grad():
+            for p, async_work in self._async_works.items():
+                async_work.wait()
+        self._async_works.clear()
+        self._synchronized = True
+
+    @contextmanager
+    def skip_synchronize(self):
+        """
+        A context manager used to specify that optimizer.step() should
+        not perform synchronization.
+
+        It's typically used in a following pattern:
+
+        .. code-block:: python
+
+            optimizer.synchronize()
+            with optimizer.skip_synchronize():
+                optimizer.step()
+        """
+        self._should_synchronize = False
+        try:
+            yield
+        finally:
+            self._should_synchronize = True
+
+    def step(self, closure=None):
+        if self._should_synchronize:
+            if self._synchronized:
+                warnings.warn(
+                    "optimizer.step() called without "
+                    "optimizer.skip_synchronize() context after "
+                    "optimizer.synchronize(). This can cause training "
+                    "slowdown. You may want to consider using "
+                    "optimizer.skip_synchronize() context if you use "
+                    "optimizer.synchronize() in your code."
+                )
+            self.synchronize()
+        self._synchronized = False
+        return super(self.__class__, self).step(closure)
+
+    def zero_grad(self):
+        if self._async_works:
+            raise AssertionError(
+                "optimizer.zero_grad() was called after loss.backward() "
+                "but before optimizer.step() or optimizer.synchronize(). "
+                "This is prohibited as it can cause a race condition."
+            )
+        return super(self.__class__, self).zero_grad()
+
+
 def DistributedAdaptWithCombineOptimizer(
     optimizer,
     model,
@@ -227,3 +326,16 @@ def DistributedAdaptWithCombineOptimizer(
     return cls(
         optimizer.param_groups, model, communication_type, num_steps_per_communication
     )
+
+
+def DistributedGradientAllreduceOptimizer(
+    optimizer,
+    model,
+    num_steps_per_communication=1,
+):
+    cls = type(
+        optimizer.__class__.__name__,
+        (optimizer.__class__,),
+        dict(_DistributedOptimizer.__dict__),
+    )
+    return cls(optimizer.param_groups, model, num_steps_per_communication)

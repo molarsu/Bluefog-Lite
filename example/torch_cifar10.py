@@ -29,7 +29,7 @@ parser.add_argument(
     type=str,
     default="neighbor_allreduce",
     help="The type of distributed optimizer. Supporting options are [neighbor_allreduce, allreduce]",
-    choices=["neighbor_allreduce", "allreduce"],
+    choices=["neighbor_allreduce", "allreduce", "gradient_allreduce"],
 )
 parser.add_argument(
     "--communicate-state-dict",
@@ -157,17 +157,18 @@ if args.cuda:
 optimizer = torch.optim.SGD(
     model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4
 )
-base_dist_optimizer = bfl.DistributedAdaptWithCombineOptimizer
 if args.dist_optimizer == "allreduce":
-    optimizer = base_dist_optimizer(
+    optimizer = bfl.DistributedAdaptWithCombineOptimizer(
         optimizer, model=model, communication_type=bfl.CommunicationType.allreduce
     )
 elif args.dist_optimizer == "neighbor_allreduce":
-    optimizer = base_dist_optimizer(
+    optimizer = bfl.DistributedAdaptWithCombineOptimizer(
         optimizer,
         model=model,
         communication_type=bfl.CommunicationType.neighbor_allreduce,
     )
+elif args.dist_optimizer == "gradient_allreduce":
+    optimizer = bfl.DistributedGradientAllreduceOptimizer(optimizer, model=model)
 else:
     raise ValueError(
         "Unknown args.dist-optimizer type -- "
