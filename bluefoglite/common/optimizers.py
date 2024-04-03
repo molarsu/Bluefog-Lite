@@ -54,7 +54,7 @@ def _check_named_parameters(optimizer, model):
     named_parameters = list(itertools.chain(*[m.named_parameters() for m in _models]))
 
     # make sure that named_parameters are tuples
-    if any([not isinstance(p, tuple) for p in named_parameters]):
+    if any(not isinstance(p, tuple) for p in named_parameters):
         raise ValueError(
             "named_parameters should be a sequence of "
             "tuples (name, parameter), usually produced by "
@@ -85,10 +85,12 @@ def _check_named_parameters(optimizer, model):
     return named_parameters, _models
 
 
+# pylint: disable=too-many-instance-attributes
 class _DistributedReduceOptimizer(torch.optim.Optimizer):
     def __init__(
         self, params, model, communication_type, num_steps_per_communication=1
     ):
+        # pylint: disable=bad-super-call, no-value-for-parameter
         super(self.__class__, self).__init__(params)
 
         named_parameters, models = _check_named_parameters(self, model)
@@ -102,7 +104,7 @@ class _DistributedReduceOptimizer(torch.optim.Optimizer):
 
         self._models = models
         self._parameter_names = {v: k for k, v in sorted(named_parameters)}
-        self._name_parameters = {k: v for k, v in sorted(named_parameters)}
+        self._name_parameters = dict(sorted(named_parameters))
         self._async_works = {}
         self._requires_update = set()
         self._synchronized = False
@@ -176,7 +178,7 @@ class _DistributedReduceOptimizer(torch.optim.Optimizer):
 
     def synchronize(self):
         with torch.no_grad():
-            for p, async_work in self._async_works.items():
+            for _, async_work in self._async_works.items():
                 if async_work is not None:
                     async_work.wait()
         self._async_works.clear()
@@ -216,11 +218,14 @@ class _DistributedReduceOptimizer(torch.optim.Optimizer):
                 )
             self.synchronize()
         self._synchronized = False
+        # pylint: disable=bad-super-call
         return super(self.__class__, self).step(closure)
 
 
+# pylint: disable=too-many-instance-attributes
 class _DistributedOptimizer(torch.optim.Optimizer):
     def __init__(self, params, model, backward_passes_per_step=1):
+        # pylint: disable=bad-super-call, no-value-for-parameter
         super(self.__class__, self).__init__(params)
 
         named_parameters, models = _check_named_parameters(self, model)
@@ -262,7 +267,7 @@ class _DistributedOptimizer(torch.optim.Optimizer):
 
     def synchronize(self):
         with torch.no_grad():
-            for p, async_work in self._async_works.items():
+            for _, async_work in self._async_works.items():
                 async_work.wait()
         self._async_works.clear()
         self._synchronized = True
@@ -300,16 +305,8 @@ class _DistributedOptimizer(torch.optim.Optimizer):
                 )
             self.synchronize()
         self._synchronized = False
+        # pylint: disable=bad-super-call
         return super(self.__class__, self).step(closure)
-
-    def zero_grad(self):
-        if self._async_works:
-            raise AssertionError(
-                "optimizer.zero_grad() was called after loss.backward() "
-                "but before optimizer.step() or optimizer.synchronize(). "
-                "This is prohibited as it can cause a race condition."
-            )
-        return super(self.__class__, self).zero_grad()
 
 
 def DistributedAdaptWithCombineOptimizer(

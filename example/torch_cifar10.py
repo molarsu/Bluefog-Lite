@@ -7,6 +7,15 @@ import torch.nn.functional as F
 
 import bluefoglite.torch_api as bfl
 from bluefoglite.common import topology
+from bluefoglite.utility import (
+    broadcast_parameters,
+    broadcast_optimizer_state,
+)
+from bluefoglite.common.optimizers import (
+    DistributedAdaptWithCombineOptimizer,
+    DistributedGradientAllreduceOptimizer,
+    CommunicationType,
+)
 from model import ResNet20, ResNet32, ResNet44, ResNet56, ViT
 
 # Args
@@ -158,17 +167,17 @@ optimizer = torch.optim.SGD(
     model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=5e-4
 )
 if args.dist_optimizer == "allreduce":
-    optimizer = bfl.DistributedAdaptWithCombineOptimizer(
+    optimizer = DistributedAdaptWithCombineOptimizer(
         optimizer, model=model, communication_type=bfl.CommunicationType.allreduce
     )
 elif args.dist_optimizer == "neighbor_allreduce":
-    optimizer = bfl.DistributedAdaptWithCombineOptimizer(
+    optimizer = DistributedAdaptWithCombineOptimizer(
         optimizer,
         model=model,
-        communication_type=bfl.CommunicationType.neighbor_allreduce,
+        communication_type=CommunicationType.neighbor_allreduce,
     )
 elif args.dist_optimizer == "gradient_allreduce":
-    optimizer = bfl.DistributedGradientAllreduceOptimizer(optimizer, model=model)
+    optimizer = DistributedGradientAllreduceOptimizer(optimizer, model=model)
 else:
     raise ValueError(
         "Unknown args.dist-optimizer type -- "
@@ -181,8 +190,8 @@ else:
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
 # Broadcast parameters & optimizer state
-bfl.broadcast_parameters(model.state_dict(), root_rank=0)
-bfl.broadcast_optimizer_state(
+broadcast_parameters(model.state_dict(), root_rank=0)
+broadcast_optimizer_state(
     optimizer, root_rank=0, device=next(model.parameters()).device
 )
 

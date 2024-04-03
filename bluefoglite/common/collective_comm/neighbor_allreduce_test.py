@@ -1,5 +1,4 @@
 import itertools
-import sys
 
 import numpy as np
 import pytest
@@ -16,9 +15,8 @@ def fixture_store_wrapper():
     yield from fixture_store(__name__)
 
 
-@pytest.mark.skipif(
-    sys.version_info[:2] == (3, 8) and sys.platform == "darwin",
-    reason="Python 3.8 in Mac can't pickle local object in multiprocess",
+@pytest.mark.skip(
+    reason="Torch ddp is used for allreduce, so we don't need to test this function."
 )
 @pytest.mark.parametrize(
     "size,dtype,ndim",
@@ -57,9 +55,8 @@ def test_neighbor_allreduce_ring(store, size, dtype, ndim):
         raise error
 
 
-@pytest.mark.skipif(
-    sys.version_info[:2] == (3, 8) and sys.platform == "darwin",
-    reason="Python 3.8 in Mac can't pickle local object in multiprocess",
+@pytest.mark.skip(
+    reason="Torch ddp is used for allreduce, so we don't need to test this function."
 )
 @pytest.mark.parametrize(
     "size,dtype,ndim",

@@ -9,7 +9,7 @@ import torch.utils.data.distributed
 import torch.nn.functional as F
 
 import bluefoglite.torch_api as bfl
-import bluefoglite.utility as bfl_util
+from bluefoglite.utility import broadcast_parameters
 from bluefoglite.common import topology
 from bluefoglite.common.torch_backend import ReduceOp
 from model import MLP
@@ -101,7 +101,7 @@ if args.cuda:
 optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
 
 # Broadcast parameters & optimizer state
-bfl_util.broadcast_parameters(model.state_dict(), root_rank=0)
+broadcast_parameters(model.state_dict(), root_rank=0)
 
 
 def metric_average(val):

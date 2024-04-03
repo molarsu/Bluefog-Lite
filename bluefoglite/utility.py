@@ -1,6 +1,10 @@
 import collections
 import torch
 import bluefoglite.torch_api as bfl
+from bluefoglite.common.optimizers import (
+    DistributedAdaptWithCombineOptimizer,
+    DistributedGradientAllreduceOptimizer,
+)
 
 
 def broadcast_parameters(params, root_rank):
@@ -57,6 +61,7 @@ def neighbor_allreduce_parameters(params):
         async_work.wait()
 
 
+# pylint: disable=too-many-locals, disable=too-many-branches
 def broadcast_optimizer_state(optimizer, root_rank, device):
     if isinstance(optimizer, torch.optim.LBFGS):
         raise ValueError("cannot broadcast torch.optim.LBFGS state")
@@ -74,7 +79,10 @@ def broadcast_optimizer_state(optimizer, root_rank, device):
         # forces allreduce on all model parameters, which will result in deadlock
         # unless every rank calls step(). Therefore, to finish state initialization
         # only call optimizer.step() with a torch.optim.Optimizer.
-        if optimizer.__module__ == bfl.DistributedAdaptWithCombineOptimizer.__module__:
+        if optimizer.__module__ in (
+            DistributedAdaptWithCombineOptimizer.__module__,
+            DistributedGradientAllreduceOptimizer.__module__,
+        ):
             super(optimizer.__class__, optimizer).step()
         else:
             optimizer.step()

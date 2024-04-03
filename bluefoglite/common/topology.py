@@ -14,6 +14,7 @@
 # ==============================================================================
 
 import math
+import functools
 from typing import Dict, Optional, Tuple, Iterator, List
 
 import numpy as np
@@ -203,9 +204,12 @@ def GetDynamicOnePeerSendRecvRanks(
     size = topo.number_of_nodes()
     sorted_send_ranks = []
     for rank in range(size):
+        f = functools.partial(
+            lambda r, rank: r - rank if r >= rank else r - rank + size, rank=rank
+        )
         sorted_ranks = sorted(
             topo.successors(rank),
-            key=lambda r: r - rank if r >= rank else r - rank + size,
+            key=f,
         )
         if sorted_ranks[0] == rank:
             sorted_ranks = sorted_ranks[1:]  # remove the self-loop
@@ -269,7 +273,7 @@ def GetExp2DynamicSendRecvMachineRanks(
         index += 1
 
 
-def GetInnerOuterRingDynamicSendRecvRanks(
+def GetInnerOuterRingDynamicSendRecvRanks(  # pylint: disable=too-many-locals
     world_size: int, local_size: int, self_rank: int
 ) -> Iterator[Tuple[List[int], List[int]]]:
     """
@@ -331,6 +335,7 @@ def GetInnerOuterRingDynamicSendRecvRanks(
         index += 1
 
 
+# pylint: disable=too-many-locals
 def GetInnerOuterExpo2DynamicSendRecvRanks(
     world_size: int, local_size: int, self_rank: int
 ) -> Iterator[Tuple[List[int], List[int]]]:

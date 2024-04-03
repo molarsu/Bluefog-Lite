@@ -1,5 +1,3 @@
-import sys
-
 import numpy as np
 import pytest
 
@@ -15,10 +13,8 @@ def fixture_store_wrapper():
     yield from fixture_store(__name__)
 
 
-@pytest.mark.skipif(
-    sys.platform == "darwin" and sys.version_info[:2] == (3, 8),
-    # See https://github.com/spack/spack/issues/14102 as example
-    reason="Can't pickle local object in multiprocess",
+@pytest.mark.skip(
+    reason="Torch ddp is used for allreduce, so we don't need to test this function."
 )
 @pytest.mark.parametrize("size", [2, 3, 4, 5, 6, 9, 11, 16])
 def test_allreduce_tree(store, size):
