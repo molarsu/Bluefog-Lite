@@ -1,4 +1,6 @@
-networkx < 3.0
-numpy
-protobuf
-torch
+torch==2.1.0
+torchvision==0.16.0
+torchaudio==2.1.0
+networkx==2.8.8
+numpy==1.24.1
+protobuf==3.19.4

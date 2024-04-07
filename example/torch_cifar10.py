@@ -74,6 +74,13 @@ parser.add_argument(
     choices=["no_profiling", "c_profiling", "torch_profiling"],
 )
 parser.add_argument(
+    "--topology",
+    type=str,
+    default="ring",
+    help="The type of topology to use",
+    choices=["ring", "exp", "exp2", "mesh2d", "star", "fully_connected"],
+)
+parser.add_argument(
     "--disable-dynamic-topology",
     action="store_true",
     default=False,
@@ -85,7 +92,18 @@ args.cuda = not args.no_cuda and torch.cuda.is_available()
 
 # Initialize topology
 bfl.init(backend=args.backend)
-topo = topology.RingGraph(bfl.size())
+if args.topology == "ring":
+    topo = topology.RingGraph(bfl.size())
+elif args.topology == "exp":
+    topo = topology.ExponentialGraph(bfl.size())
+elif args.topology == "exp2":
+    topo = topology.ExponentialTwoGraph(bfl.size())
+elif args.topology == "mesh2d":
+    topo = topology.MeshGrid2DGraph(bfl.size())
+elif args.topology == "star":
+    topo = topology.StarGraph(bfl.size())
+else:
+    raise NotImplementedError("topology not implemented")
 bfl.set_topology(topo)
 if not args.disable_dynamic_topology:
     dynamic_neighbor_allreduce_gen = topology.GetDynamicOnePeerSendRecvRanks(
@@ -299,7 +317,7 @@ if args.profiling == "c_profiling":
         profiler.disable()
         # redirect to ./output_static.txt or ./output_dynamic.txt
         with open(
-            f"output_{'static' if args.disable_dynamic_topology else 'dynamic'}.txt",
+            f"output/{'static' if args.disable_dynamic_topology else 'dynamic'}_np{bfl.size()}_topo{args.topology}.txt",
             "w",
         ) as file:
             stats = pstats.Stats(profiler, stream=file).sort_stats("tottime")
@@ -319,7 +337,7 @@ elif args.profiling == "torch_profiling":
             train(0)
         # redirect to ./output_static.txt or ./output_dynamic.txt
         with open(
-            f"output_{'static' if args.disable_dynamic_topology else 'dynamic'}.txt",
+            f"output/{'static' if args.disable_dynamic_topology else 'dynamic'}_np{bfl.size()}_topo{args.topology}.txt",
             "w",
         ) as file:
             with contextlib.redirect_stdout(file):
