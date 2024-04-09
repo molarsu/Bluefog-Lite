@@ -62,16 +62,17 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+    - name: Set up Conda
+      uses: conda-incubator/setup-miniconda@v2
       with:
+        auto-update-conda: true
         python-version: ${{ matrix.python-version }}
+        activate-environment: bluefoglite
     - name: Install BlueFogLite
       run: |
+        conda install pip
         python -m pip install --upgrade pip
         python -m pip install -r requirements.txt
-        python -m pip install networkx 
-        python -c "import networkx"
         python -m pip install .
         cat tools/requirements_dev.txt | grep pytest | xargs pip install
     - name: Unit Test
@@ -88,19 +89,20 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+    - name: Set up Conda
+      uses: conda-incubator/setup-miniconda@v2
       with:
+        auto-update-conda: true
         python-version: ${{ matrix.python-version }}
+        activate-environment: bluefoglite
     - name: Install brew coreutils
       run: brew install coreutils  # for timeout command
     - name: Install BlueFogLite
       run: |
-        python3 -m pip install --upgrade pip
-        python3 -m pip install -r requirements.txt
-        python3 -m pip install networkx 
-        python3 -c "import networkx"
-        python3 -m pip install .
+        conda install pip
+        python -m pip install --upgrade pip
+        python -m pip install -r requirements.txt
+        python -m pip install .
         cat tools/requirements_dev.txt | grep pytest | xargs pip install
     - name: Unit Test
       run: |

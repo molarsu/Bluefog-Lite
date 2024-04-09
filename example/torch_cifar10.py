@@ -317,7 +317,7 @@ if args.profiling == "c_profiling":
         profiler.disable()
         # redirect to ./output_static.txt or ./output_dynamic.txt
         with open(
-            f"output/{'static' if args.disable_dynamic_topology else 'dynamic'}_np{bfl.size()}_topo{args.topology}.txt",
+            f"output/cp_{'static' if args.disable_dynamic_topology else 'dynamic'}_np{bfl.size()}_{args.topology}.txt",
             "w",
         ) as file:
             stats = pstats.Stats(profiler, stream=file).sort_stats("tottime")
@@ -337,7 +337,7 @@ elif args.profiling == "torch_profiling":
             train(0)
         # redirect to ./output_static.txt or ./output_dynamic.txt
         with open(
-            f"output/{'static' if args.disable_dynamic_topology else 'dynamic'}_np{bfl.size()}_topo{args.topology}.txt",
+            f"output/tp_{'static' if args.disable_dynamic_topology else 'dynamic'}_np{bfl.size()}_{args.topology}.txt",
             "w",
         ) as file:
             with contextlib.redirect_stdout(file):
