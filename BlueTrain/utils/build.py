@@ -5,6 +5,11 @@ import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
 from torchvision.models import vit_b_16, ViT_B_16_Weights, ViT_L_16_Weights,vit_l_16
+from bluefoglite.common.optimizers import (
+    DistributedAdaptWithCombineOptimizer,
+    DistributedGradientAllreduceOptimizer,
+    CommunicationType,
+)
 
 from model import *
 
@@ -81,19 +86,19 @@ def build_dist_optimizer(model, args):
     )
     if args.dist_mode=="pytorch":
         return optimizer
-    base_dist_optimizer = bfl.DistributedAdaptWithCombineOptimizer
+    base_dist_optimizer = DistributedAdaptWithCombineOptimizer
     if args.dist_optimizer == "allreduce":
         optimizer = base_dist_optimizer(
-            optimizer, model=model, communication_type=bfl.CommunicationType.allreduce
+            optimizer, model=model, communication_type=CommunicationType.allreduce
         )
     elif args.dist_optimizer == "neighbor_allreduce":
         optimizer = base_dist_optimizer(
             optimizer,
             model=model,
-            communication_type=bfl.CommunicationType.neighbor_allreduce,
+            communication_type=CommunicationType.neighbor_allreduce,
         )
     elif args.dist_optimizer == "gradient_allreduce":
-        optimizer = bfl.DistributedGradientAllreduceOptimizer(optimizer, model=model)
+        optimizer = DistributedGradientAllreduceOptimizer(optimizer, model=model)
     else :
         raise NotImplementedError("optimizer not implemented")
     return optimizer

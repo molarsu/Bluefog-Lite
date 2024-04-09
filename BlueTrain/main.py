@@ -16,6 +16,10 @@ import bluefoglite.torch_api as bfl
 from bluefoglite.common import topology
 
 from BlueTrain.utils.build import build_model, build_dist_optimizer, build_data_loader
+from bluefoglite.utility import (
+    broadcast_parameters,
+    broadcast_optimizer_state,
+)
 from runner.baserunner import BaseRunner
 
 
@@ -50,7 +54,7 @@ def get_args():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--model", type=str, default="vit_b", help="model to use")
-    parser.add_argument("--output-path", type=str, default="./outputs/Debug", help="dataset to use")
+    parser.add_argument("--output-path", type=str, default="./outputs/Debug", help="output path")
     
     parser.add_argument("--dataset", type=str, default="CIFAR100", help="dataset to use")
     parser.add_argument(
@@ -160,8 +164,8 @@ def main():
 
 
     if args.dist_mode == "bluefog":   
-        bfl.broadcast_parameters(model.state_dict(), root_rank=0)
-        bfl.broadcast_optimizer_state(
+        broadcast_parameters(model.state_dict(), root_rank=0)
+        broadcast_optimizer_state(
             optimizer, root_rank=0, device=next(model.parameters()).device
         )
     

@@ -59,7 +59,7 @@ class BaseRunner:
                 correct += pred.eq(labels).sum().item()
                 t_bar.set_postfix(loss=train_loss / (i + 1), train_acc=correct/total)
                 if self.rank == 0:
-                    self.logger.info(f'Epoch {epoch+1} Iter {i + 1}, Training Loss: {train_loss / (i + 1):.3f}')
+                    self.logger.info(f'Epoch {epoch+1} Iter {i + 1}, Training Loss: {train_loss / (i + 1):.3f}, Training ACC: {correct/total: .3f}')
 
     def test(self, epoch):
         if self.rank != 0:
