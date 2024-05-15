@@ -1,5 +1,3 @@
-
-
 def dynamic_topology_update(dynamic_neighbor_allreduce_gen, args, optimizer):
     if args.dist_optimizer == "neighbor_allreduce":
         send_neighbors, recv_neighbors = next(dynamic_neighbor_allreduce_gen)
