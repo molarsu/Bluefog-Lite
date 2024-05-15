@@ -17,7 +17,7 @@ bflrun -np 8 python BlueTrain/main.py \
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
 bflrun -np 8 python BlueTrain/main.py \
     --model vit_b \
-    --output-path ./outputs/0515/bluefog/vit_b_8gpu/all_reduce \
+    --output-path ./outputs/0515/bluefog/vit_b_8gpu/gradient_allreduce \
     --dist-mode bluefog \
     --dist-optimizer gradient_allreduce \
     --backend nccl \
@@ -32,7 +32,7 @@ bflrun -np 8 python BlueTrain/main.py \
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
 bflrun -np 8 python BlueTrain/main.py \
     --model vit_b \
-    --output-path ./outputs/0515/bluefog/vit_b_8gpu/all_reduce \
+    --output-path ./outputs/0515/bluefog/vit_b_8gpu/neighbor_allreduce \
     --dist-mode bluefog \
     --dist-optimizer neighbor_allreduce \
     --backend nccl \
